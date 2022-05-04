@@ -8,15 +8,15 @@ is linked below:
 
 * [HexRaysDeob](https://github.com/RolfRolles/HexRaysDeob) 
 
-In the folder examples, you can see a comparisons between obfuscated and deobfuscated samples.
+In the folder examples, you can see a comparisons between obfuscated and deobfuscated functions.
 
-## Pre Requirements
+## Requirements
 
 The code depends on the python port of the ida microcode api. The script was tested with following versions:
 
 * Ida Pro Version 7.5
 * At least Hexrays Decompiler Version v7.6.0.210427 
-* IDAPython with Python3.6 interpreter
+* IDAPython with Python3.9 interpreter
 
 ## Usage
 
@@ -26,8 +26,6 @@ Simply load the `emotet_unflatten.py` script via `File->Script File ..` in Ida P
 unflattener = PLUGIN_ENTRY()
 unflattener.run(0)
 ```
-
-The script operates on microcode level, acting as a plugin for the hexrays decompiler. Each time you decompile a function, the script will attempt to unflatten the target function.
 
 ## Features
 
@@ -48,21 +46,27 @@ Based on Rolf Rolles' code, the plugin tries to determine whether a function is 
 
 ```python
 # always needs virtual address as input
-X.enforce_unflatten(0x1001ec5a)
+unflattener.enforce_unflatten(0x1001ec5a)
+```
+
+If you want to black list a function, this can be done as follows:
+
+```python
+unflattener.black_list.append(0xdeadbeef)
 ```
 
 ### Safe Mode
 
-In the current version, we experienced crashes when trying to unflatten multiple functions without turning the tool off. Thus, we have added a safe mode. Safe mode is enabled by default and deactivates the plugin each time the unflattening algorithm runs on a function. Safe mode can be disabled as follows:
+In the current version, we experienced crashes when trying to unflatten multiple functions without turning the tool off. Thus, we have added a safe mode. Safe mode is enabled by default and deactivates the plugin each time the unflattening algorithm runs. Safe mode can be disabled as follows:
 
 ```python
-X.SAFE_MODE = False
+unflattener.SAFE_MODE = False
 ```
 
 If safe mode is enabled, the tool can be reactivated like this:
 
 ```python
-X.run(0)
+unflattener.run(0)
 ```
 
 We recommend you to keep safe mode enabled.
@@ -74,7 +78,7 @@ The purpose of this tool is to share our experience and results of attacking Emo
 * The algorithm to detected nested dispatchers is simple. If turned off and your gut feeling tells you the decompiled output looks wrong, it is worth reinvestigating. Overall, we recommend researchers to always cross-check their results and not trust the output blindly.
 * Conditional states are not handled by this tool.
 * In some cases, we optimize away the `break` statement in a while loop. We are working on this issue. However, bear in mind that this issue exists when analysing an unflattened function 
-* During development and evaluation, we experienced crashes. Thus, we recommend saving often and keeping a separate copy of the IDB file. When working with the tool, we usually keep two windows open. One solely to use with the tool, and one without unflattening activated. As explained above, another way to stabilize the tool is to turn if only on if you are looking at a particular function you want to unflatten.
+* During development and evaluation, we experienced crashes. Thus, we recommend saving often and keeping a separate copy of the IDB file. If safe mode is turned off,  we recommend to keep two IDA sessions open,one for the unflattener plugin and one for annotations.
 * Our research and this tool is based on a previous version of Emotet than the one that is currently propagated by the threat actors (date: 2022-05-04). Thus, if you plan to run the tool on the newest version, the tool will not give you the results as described in the blog article. Below is a list of unpacked emotet samples we have tested the tool on:
 
 ```
@@ -82,4 +86,4 @@ The purpose of this tool is to share our experience and results of attacking Emo
 926a4edd517e39c492b50ccb0a8e2b23b865599645e4b50638ef9cf117769e1c
 ```
 
-Overall, we believe that this deobfuscator generates expected results as explained in the blog article for the majority of Emotet samples seen up until approx. 2022-04-20. Emotet samples seen later than 2022-04-20 are different in terms of obfuscation, so this tool will fail.
+Overall, we believe that this unflattener generates results as evaluated in the blog article for the majority of Emotet samples seen up until approx. 2022-04-20. Emotet samples seen later than 2022-04-20 are different in terms of obfuscation, so this tool will fail for these variants.
