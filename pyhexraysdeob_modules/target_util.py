@@ -1,7 +1,6 @@
 
 from ida_hexrays import *
-
-import hexrays_util
+from pyhexraysdeob_modules.hexrays_util import *
 
 # Append a goto onto a non-empty block, which is assumed not to already have
 # a goto at the end of it.
@@ -158,8 +157,8 @@ def remove_single_gotos(mba):
 def extract_jcc_parts(pred1):
     if is_mcode_jcond(pred1.tail.opcode):
         if pred1.tail.d.t != mop_b:
-            hexrays_util.report_info("extract_jcc_parts: block was jcc, but destination was %s, not mop_b" % (
-                hexrays_util.mopt_t_to_string(pred1.tail.d.t)))
+            report_info("extract_jcc_parts: block was jcc, but destination was %s, not mop_b" % (
+                mopt_t_to_string(pred1.tail.d.t)))
             return False, None, None, None
         ends_with_jcc = pred1
         jcc_dest = pred1.tail.d.b
@@ -250,13 +249,13 @@ class deferred_graph_modifier_t:
             mb_src.succset.push_back(mb_dst2.serial)
             mb_dst2.predset.push_back(mb_src.serial)
             if cfi == None:
-                hexrays_util.report_info("Replaced edge (%d->%d) by (%d->%d)\n" % (
+                report_info("Replaced edge (%d->%d) by (%d->%d)\n" % (
                     e.src, e.dst1, e.src, e.dst2))
             else:
                 if e.src in cfi.block_to_key.keys():
-                    hexrays_util.report_info(f"Replaced edge ({e.src}->{e.dst1}) by ({e.src}->{e.dst2}) BlockKey = {hex(cfi.block_to_key[e.src])}")
+                    report_info(f"Replaced edge ({e.src}->{e.dst1}) by ({e.src}->{e.dst2}) BlockKey = {hex(cfi.block_to_key[e.src])}")
                 else:
-                    hexrays_util.report_info(f"Replaced edge ({e.src}->{e.dst1}) by ({e.src}->{e.dst2}) BlockKey = {cfi.block_to_key}")
+                    report_info(f"Replaced edge ({e.src}->{e.dst1}) by ({e.src}->{e.dst2}) BlockKey = {cfi.block_to_key}")
         return len(self.edges)
 
 

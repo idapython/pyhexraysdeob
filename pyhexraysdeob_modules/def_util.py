@@ -1,8 +1,7 @@
 
 from ida_hexrays import *
 import ida_lines
-
-import hexrays_util
+from pyhexraysdeob_modules.hexrays_util import *
 
 # Put an mop_t into an mlist_t. The op must be either a register or a stack
 # variable.
@@ -60,7 +59,7 @@ def my_find_def_forwards(blk, ml, start):
 #   non-negative.
 def find_numeric_def_backwards(blk, op, chain, recursive, allow_multi_succs, block_stop):
     
-    hexrays_util.report_debug(f"blk = {blk.serial}, op = {op.dstr()}, chain = {chain}, block_stop = {block_stop}")
+    report_debug(f"blk = {blk.serial}, op = {op.dstr()}, chain = {chain}, block_stop = {block_stop}")
     mba = blk.mba
     ml = mlist_t()
     
@@ -79,7 +78,7 @@ def find_numeric_def_backwards(blk, op, chain, recursive, allow_multi_succs, blo
             # an "stx" instruction, which is assumed to redefine everything
             # until its aliasing information is refined.
             if _def.opcode != m_mov:
-                hexrays_util.report_error("FindNumericDef: found %s" % hexrays_util.mcode_t_to_string(_def))
+                report_error("FindNumericDef: found %s" % mcode_t_to_string(_def))
                 return False, None
 
             # Now that we found a mov, add it to the chain.
@@ -97,7 +96,7 @@ def find_numeric_def_backwards(blk, op, chain, recursive, allow_multi_succs, blo
             # Otherwise, if it was not a numeric assignment, then try to track
             # whatever was assigned to it. This can only succeed if the thing
             # that was assigned was a register or stack variable.
-            hexrays_util.report_info3(f"Now tracking {ida_lines.tag_remove(_def.l._print())}")
+            report_info3(f"Now tracking {ida_lines.tag_remove(_def.l._print())}")
 
             # Try to start tracking the other thing...
             ml.clear()
@@ -146,7 +145,7 @@ def find_forward_numeric_def(blk, mop):
     # Find a forward definition
     assign_insn = my_find_def_forwards(blk, ml, None)
     if assign_insn:
-        hexrays_util.report_info3(f"Forward search found {ida_lines.tag_remove(assign_insn._print())}")
+        report_info3(f"Forward search found {ida_lines.tag_remove(assign_insn._print())}")
 
         # We only want MOV instructions with numeric left-hand sides
         if assign_insn.opcode != m_mov or assign_insn.l.t != mop_n:
@@ -171,7 +170,7 @@ def find_forward_stack_var_def(cluster_head, op_copy, chain):
     if not ok:
         return None
 
-    hexrays_util.report_info3(f"Forward method found {ida_lines.tag_remove(num._print())}!")
+    report_info3(f"Forward method found {ida_lines.tag_remove(num._print())}!")
 
     # If the found definition was suitable, add the assignment to the chain
     mi = mov_info_t()

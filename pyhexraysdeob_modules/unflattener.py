@@ -1,10 +1,9 @@
 
 from ida_hexrays import *
-
-import cf_flatten_info
-import def_util
-import target_util
-import hexrays_util
+from pyhexraysdeob_modules.cf_flatten_info import *
+from pyhexraysdeob_modules.target_util import *
+from pyhexraysdeob_modules.hexrays_util import *
+from pyhexraysdeob_modules.def_util import *
 import ida_lines
 
 class assign_searcher_t(minsn_visitor_t):
@@ -15,7 +14,7 @@ class assign_searcher_t(minsn_visitor_t):
         minsn_visitor_t.__init__(self)
         self.op = op
         self.dispatcher_reg = dispatcher_reg
-        hexrays_util.report_info(f"Initiated assign_searcher_t, op = {self.op.dstr()}, dispatcher_reg = {self.dispatcher_reg.dstr()}")
+        report_info(f"Initiated assign_searcher_t, op = {self.op.dstr()}, dispatcher_reg = {self.dispatcher_reg.dstr()}")
         self.jz_target_block = -1
         self.hits = []
         self.assign_infos = []
@@ -33,14 +32,13 @@ class assign_searcher_t(minsn_visitor_t):
                 return 0
 
             if ins.d.dstr() == self.op.dstr():
-                hexrays_util.report_info(f"AssignSearcher hit: {ins.dstr()}")
                 self.hits.append(ins)
             return 0
         else:
 
             if (ins.l.dstr() == self.dispatcher_reg.dstr() and ins.r.dstr() == self.op.dstr()) or (ins.l.dstr() == self.op.dstr() and ins.r.dstr() == self.dispatcher_reg.dstr()):
                 block_no = ins.d.b
-                hexrays_util.report_info(f"Current instruction = {ins.dstr()}, block = {block_no}")
+                report_info(f"Current instruction = {ins.dstr()}, block = {block_no}")
                 self.jz_target_block = block_no
             return 0
 
@@ -52,7 +50,7 @@ class cf_unflattener_t(optblock_t):
 
     def __init__(self, plugin):
         optblock_t.__init__(self)
-        self.cfi = cf_flatten_info.cf_flatten_info_t(plugin)
+        self.cfi = cf_flatten_info_t(plugin)
         self.plugin = plugin
         self.last_maturity = MMAT_ZERO
         self.clear()
@@ -60,19 +58,19 @@ class cf_unflattener_t(optblock_t):
         self.debug = True
 
     def report_success(self, blk, changed):
-        hexrays_util.report_success(f"UNFLATTENER: blk.start={hex(blk.start)} (changed={changed})")
+        report_success(f"UNFLATTENER: blk.start={hex(blk.start)} (changed={changed})")
 
     def report_info(self, msg):
-        hexrays_util.report_info(msg)
+        report_info(msg)
 
     def report_error(self, msg):
-        hexrays_util.report_error(msg)
+        report_error(msg)
 
     def report_error3(self, msg):
-        hexrays_util.report_error3(msg)
+        report_error3(msg)
 
     def report_debug(self, msg):
-        hexrays_util.report_debug(msg)
+        report_debug(msg)
 
     def clear(self):
         self.cfi.clear()
@@ -185,7 +183,7 @@ class cf_unflattener_t(optblock_t):
     # the CFUnflattener class.
     def find_block_target_or_last_copy(self, mb, mb_cluster_head, what, allow_multi_succs):
 
-        hexrays_util.report_info(f"Current what = {what.dstr()}")
+        report_info(f"Current what = {what.dstr()}")
 
         mba = mb.mba
         cluster_head = mb_cluster_head.serial
@@ -194,19 +192,19 @@ class cf_unflattener_t(optblock_t):
         # Search backwards looking for a numeric assignment to "what". We may or
         # may not find a numeric assignment, but we might find intervening
         # assignments where "what" is copied from other variables.
-        found, op_num = def_util.find_numeric_def_backwards(
+        found, op_num = find_numeric_def_backwards(
             mb, what, local, True, allow_multi_succs, cluster_head)
 
         # If we found no intervening assignments to "what", that's bad.
         if len(local) == 0:
-            hexrays_util.report_info(f"Local array is zero, failed backward search! Dirty search now for block = {mb.serial}")
+            report_info(f"Local array is zero, failed backward search! Dirty search now for block = {mb.serial}")
             if mb.get_reginsn_qty() == 2:
-                hexrays_util.report_info(f"2 instructions check suceeded!")
+                report_info(f"2 instructions check suceeded!")
                 head_insn = mb.head
-                hexrays_util.report_info(f"Head instruction = {head_insn.dstr()}")
+                report_info(f"Head instruction = {head_insn.dstr()}")
             return -1
         
-        hexrays_util.report_info(f"Local array not zero!")
+        report_info(f"Local array not zero!")
 
         # opCopy now contains the last non-numeric assignment that we saw before
         # FindNumericDefBackwards terminated (either due to not being able to
@@ -223,10 +221,10 @@ class cf_unflattener_t(optblock_t):
         # of the cluster. If we don't find it, this is not necessarily an
         # indication that the analysis failed; for blocks with two successors,
         # we do further analysis.
-        hexrays_util.report_info(f"OpCopy = {op_copy.dstr()}")
+        report_info(f"OpCopy = {op_copy.dstr()}")
         if not found and op_copy and op_copy.t == mop_S:
-            hexrays_util.report_info("Running forward analysis")
-            num = def_util.find_forward_stack_var_def(mb_cluster_head, op_copy, local)
+            report_info("Running forward analysis")
+            num = find_forward_stack_var_def(mb_cluster_head, op_copy, local)
             if num:
                 op_num = num
                 found = True
@@ -246,16 +244,16 @@ class cf_unflattener_t(optblock_t):
 
             # search all instructions, if the register is assigned only ONCE and that is with a 
             # high entropy variable, we can extract the high entropy value, and grab the block by key via that 
-            hexrays_util.report_info(f"Attempting to search for block by key via iterating all instructions, op_copy = {op_copy}")
+            report_info(f"Attempting to search for block by key via iterating all instructions, op_copy = {op_copy}")
             searcher = assign_searcher_t(op_copy, self.cfi.op_compared)
             mba.for_all_topinsns(searcher)
             if len(searcher.hits) == 1:
-                hexrays_util.report_info(f"Only one assignment, {searcher.hits[0].dstr()}")
+                report_info(f"Only one assignment, {searcher.hits[0].dstr()}")
                 key = searcher.hits[0].l.nnn.value
                 dest_no = self.cfi.find_block_by_key(key)
                 if dest_no == -1:
                     dest_no = searcher.jz_target_block
-                    hexrays_util.report_info(f"Target block via assign_searcher = {dest_no}")
+                    report_info(f"Target block via assign_searcher = {dest_no}")
                 return dest_no
 
 
@@ -291,7 +289,7 @@ class cf_unflattener_t(optblock_t):
         # (store it in non_jcc). Also find the block number of the jcc target, and
         # the block number of the jcc fallthrough (i.e., the block number of
         # non_jcc).
-        ok, ends_with_jcc, non_jcc, jcc_dest, jcc_fall_through = target_util.split_mblocks_by_jcc_ending(pred1, pred2)
+        ok, ends_with_jcc, non_jcc, jcc_dest, jcc_fall_through = split_mblocks_by_jcc_ending(pred1, pred2)
         if not ok:
             self.report_info("Block %s w/preds %s, %s did not have one predecessor ending in jcc, one without" % (
                 disp_pred, pred1.serial, pred2.serial))
@@ -369,8 +367,8 @@ class cf_unflattener_t(optblock_t):
             return 0
         
         # remove single gotos
-        changed = target_util.remove_single_gotos(mba)
-        hexrays_util.report_info(f"Number of single GOTOS changed = {changed}")
+        changed = remove_single_gotos(mba)
+        report_info(f"Number of single GOTOS changed = {changed}")
         if changed != 0:
             mba.verify(True)
         
@@ -381,7 +379,7 @@ class cf_unflattener_t(optblock_t):
             return changed
 
         # Create an object that allows us to modify the graph at a future point.
-        dgm = target_util.deferred_graph_modifier_t()
+        dgm = deferred_graph_modifier_t()
         dirty_chains = False
 
         # if flag to run for multiple dispatchers is deactivated,
@@ -518,7 +516,7 @@ class cf_unflattener_t(optblock_t):
                 # (the latter only for debug-printing purposes).
                 op_copy = self.deferred_erasures_local[-1].op_copy
                 m = self.deferred_erasures_local[-1].ins_mov
-                self.report_info(f"Block {disp_pred} did not define assign a number to assigned var; assigned {hexrays_util.mopt_t_to_string(m.l.t)} instead")
+                self.report_info(f"Block {disp_pred} did not define assign a number to assigned var; assigned {mopt_t_to_string(m.l.t)} instead")
 
 
                 # Call the function that handles the case of a conditional assignment

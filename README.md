@@ -8,6 +8,8 @@ is linked below:
 
 * [HexRaysDeob](https://github.com/RolfRolles/HexRaysDeob) 
 
+In the folder examples, you can see a comparisons between obfuscated and deobfuscated samples.
+
 ## Pre Requirements
 
 The code depends on the python port of the ida microcode api. The script was tested with following versions:
@@ -48,3 +50,18 @@ Based on Rolf Rolles' code, the plugin tries to determine whether a function is 
 # always needs virtual address as input
 X.enforce_unflatten(0x1001ec5a)
 ```
+
+## Limitations & Known Issues
+
+The purpose of this tool is to share our experience and results of attacking Emotet's Control Flow Flattening. In the current state, this solution is not able to deobfuscate all functions completely. Among the outstanding issues:
+
+* The algorithm to detected nested dispatchers is simple. If turned off and your gut feeling tells you the decompiled output looks wrong, it is worth reinvestigating. Overall, we recommend researchers to always cross-check their results and not trust the output blindly.
+* Conditional states are not handled by this tool.
+* In some cases, we optimize away the `break` statement in a while loop. We are working on this issue. However, bear in mind that this issue exists when analysing an unflattened function 
+* During development and evaluation, we experienced crashes. Thus, we recommend saving often and keeping a separate copy of the IDB file. When working with the tool, we usually keep two windows open. One solely to use with the tool, and one without unflattening activated. As explained above, another way to stabilize the tool is to turn if only on if you are looking at a particular function you want to unflatten.
+* Our research and this tool is based on a previous version of Emotet than the one that is currently propagated by the threat actors (date: 2022-05-04). Thus, if you plan to run the tool on the newest version, the tool will not give you the results as described in the blog article. Below is a list of emotet hashes we have tested the tool on:
+
+```
+
+```
+

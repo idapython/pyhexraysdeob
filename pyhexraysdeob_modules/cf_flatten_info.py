@@ -2,7 +2,7 @@
 import ida_idaapi
 from ida_hexrays import *
 
-import hexrays_util
+from pyhexraysdeob_modules.hexrays_util import *
 
 MIN_NUM_COMPARISONS = 2
 
@@ -45,7 +45,7 @@ class jz_info_t:
         # Compute the percentage of 1-bits. Given that these constants seem to be
         # created pseudorandomly, the percentage should be roughly 1/2.
         entropy = 0.0 if num_bits == 0 else num_ones / float(num_bits)
-        hexrays_util.report_info(f"{self.nseen} comparisons, {len(self.nums)} numbers, {num_bits} bits, {num_ones} ones, {float(entropy)} entropy")
+        report_info(f"{self.nseen} comparisons, {len(self.nums)} numbers, {num_bits} bits, {num_ones} ones, {float(entropy)} entropy")
         return entropy < 0.3 or entropy > 0.6
 
 
@@ -111,18 +111,18 @@ def get_first_block(mba):
     :return: True if found, mblock_t first block, serial first block, dispatcher serial
     """
 
-    hexrays_util.report_info("Determining first block before cfg disp begins")
+    report_info("Determining first block before cfg disp begins")
     # Initialise first and dispatch to erroneous values
     first, dispatch = -1, -1
     curr = 0
 
     while True:
 
-        hexrays_util.report_info(f"Investigating if dispatcher. Current block = {curr}")
+        report_info(f"Investigating if dispatcher. Current block = {curr}")
         # If we find a block with more than one successor, we failed.
         mb = mba.get_mblock(curr)
         if mb.nsucc() != 1:
-            hexrays_util.report_error(f"Block {curr} had {mb.nsucc()} (!= 1) successors\n")
+            report_error(f"Block {curr} had {mb.nsucc()} (!= 1) successors\n")
             return False, None, None, None
 
         # Get the successor block
@@ -351,13 +351,13 @@ class cf_flatten_info_t:
         self.clear()
 
     def report_info(self, msg):
-        hexrays_util.report_info(msg)
+        report_info(msg)
 
     def report_error(self, msg):
-        hexrays_util.report_error(msg)
+        report_error(msg)
 
     def report_debug(self, msg):
-        hexrays_util.report_debug(msg)
+        report_debug(msg)
 
     def clear(self):
         self.op_assigned = None
@@ -398,13 +398,13 @@ class cf_flatten_info_t:
         Detect additional dispatchers.
         """
         mba = blk.mba
-        hexrays_util.report_info(f"Detecting additional dispatchers ..")
+        report_info(f"Detecting additional dispatchers ..")
         block = mba.get_mblock(0)
         i = 0
         while block.nextb != None:
             block = mba.get_mblock(i)
             if block.npred() >= 3 and block.get_reginsn_qty() >= 1 and i not in self.detected_dispatchers:
-                hexrays_util.report_info(f"Block serial = {block.serial} with greater equal 3 predecessors found, verifying whether potential dispatcher ..")
+                report_info(f"Block serial = {block.serial} with greater equal 3 predecessors found, verifying whether potential dispatcher ..")
                 self.detected_dispatchers.append(i)
             i += 1
 
@@ -420,7 +420,7 @@ class cf_flatten_info_t:
         # Ensure that this function hasn't been blacklisted (e.g. because entropy
         # calculation indicates that it isn't obfuscated).
         if ea in self.plugin.black_list:
-            hexrays_util.report_error(f"[+] Function Ea = {hex(ea)} blacklisted!")
+            report_error(f"[+] Function Ea = {hex(ea)} blacklisted!")
             return False
         
         # There's also a separate whitelist for functions that were previously
@@ -428,20 +428,20 @@ class cf_flatten_info_t:
         was_white_listed = ea in self.plugin.white_list
 
 
-        hexrays_util.report_info(f"Running jz_collector")
+        report_info(f"Running jz_collector")
         # Look for the variable that was used in the largest number of jz/jg
         # comparisons against a constant. This is our "comparison" variable.
         jzc = jz_collector_t()
         mba.for_all_topinsns(jzc)
         if jzc.n_max_jz < 0:
-            hexrays_util.report_info(f"No comparisons seen for function Ea = {hex(ea)}, adding function to blacklist")
+            report_info(f"No comparisons seen for function Ea = {hex(ea)}, adding function to blacklist")
             # If there were no comparisons and we haven't seen this function
             # before, blacklist it.
             if not was_white_listed:
                 self.plugin.black_list.append(ea)
             return False
         
-        hexrays_util.report_info(f"Max comparisons seen = {jzc.n_max_jz}")
+        report_info(f"Max comparisons seen = {jzc.n_max_jz}")
 
         # Otherwise, we were able to find jz comparison information. Use that to
         # determine if the constants look entropic enough. If not, blacklist this
@@ -449,7 +449,7 @@ class cf_flatten_info_t:
         if not was_white_listed:
             # this kicks out cfgNetwork handling .. lowering entropy..
             if jzc.seen_comparisons[jzc.n_max_jz].should_blacklist():
-                hexrays_util.report_info(f"Classified function as not obfuscated")
+                report_info(f"Classified function as not obfuscated")
                 self.plugin.black_list.append(ea)
                 return False
             self.plugin.white_list.append(ea)
@@ -457,7 +457,7 @@ class cf_flatten_info_t:
         op_max = jzc.seen_comparisons[jzc.n_max_jz].op
 
 
-        hexrays_util.report_info(f"Comparison variable = {op_max.dstr()}")
+        report_info(f"Comparison variable = {op_max.dstr()}")
         # op_max is our "comparison" variable used in the control flow switch.
         if op_max.size < 4:
             self.report_error(f"Comparison variable {op_max.dstr()} is too narrow\n")
@@ -472,10 +472,10 @@ class cf_flatten_info_t:
         self.detect_additional_dispatchers(blk)
 
         if not ok:
-            hexrays_util.report_error(f"Failed determining the first block")
+            report_error(f"Failed determining the first block")
             return False
         
-        hexrays_util.report_info(f"Determined dispatcher block = {self.dispatch}, first_block = {first.serial}")
+        report_info(f"Determined dispatcher block = {self.dispatch}, first_block = {first.serial}")
 
         # Get all variables assigned to numbers in the first block. If we find the
         # comparison variable in there, then the assignment and comparison
@@ -509,7 +509,7 @@ class cf_flatten_info_t:
 
             # There should have only been one of them; is that true?
             if len(hvf.seen_copies) != 1:
-                hexrays_util.report_error(f"Multiple copies found by handoff finder! Number of copies = {hvf.seen_copies}")
+                report_error(f"Multiple copies found by handoff finder!")
                 return False
 
             # If only one variable (X) assigned a number in the first block was

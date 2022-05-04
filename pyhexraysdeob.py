@@ -6,9 +6,7 @@ import ida_loader
 import ida_kernwin
 import ida_hexrays
 import sys
-sys.path.append(r"C:\Tools\pyhexraysdeob-master\pyhexraysdeob_modules")
-import unflattener
-my_dirname, _ = os.path.split(__file__)
+from pyhexraysdeob_modules.unflattener import *
 
 setattr(ida_hexrays, "MMAT_DEOB_MAP", getattr(ida_hexrays, "MMAT_LOCOPT"))
 
@@ -24,7 +22,7 @@ class pyhexraysdeob_t(ida_idaapi.plugin_t):
 
     def toggle_activated(self):
         if not self.activated:
-            self.cfu = unflattener.cf_unflattener_t(self)
+            self.cfu = cf_unflattener_t(self)
             self.cfu.install()
         else:
             self.cfu.remove()
@@ -39,9 +37,9 @@ class pyhexraysdeob_t(ida_idaapi.plugin_t):
         print(f"Hex-rays version {ida_hexrays.get_hexrays_version()} has been detected, {self.wanted_name} ready to use")
 
         # really needed ?
-        modules_path = os.path.join(my_dirname, "pyhexraysdeob_modules")
-        if not modules_path in sys.path:
-            sys.path.append(modules_path)
+        # modules_path = os.path.join(my_dirname, "pyhexraysdeob_modules")
+        # if not modules_path in sys.path:
+        #    sys.path.append(modules_path)
 
         return ida_idaapi.PLUGIN_OK
 
