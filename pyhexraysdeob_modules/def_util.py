@@ -59,10 +59,14 @@ def my_find_def_forwards(blk, ml, start):
 #   never traverse past the block numbered iBlockStop, if that parameter is
 #   non-negative.
 def find_numeric_def_backwards(blk, op, chain, recursive, allow_multi_succs, block_stop):
+    
+    hexrays_util.report_debug(f"blk = {blk.serial}, op = {op.dstr()}, chain = {chain}, block_stop = {block_stop}")
     mba = blk.mba
     ml = mlist_t()
+    
     if not insert_op(blk, ml, op):
         return False, None
+    
     # Start from the end of the block. This variable gets updated when a copy
     # is encountered, so that subsequent searches start from the right place.
     start = None
@@ -93,10 +97,7 @@ def find_numeric_def_backwards(blk, op, chain, recursive, allow_multi_succs, blo
             # Otherwise, if it was not a numeric assignment, then try to track
             # whatever was assigned to it. This can only succeed if the thing
             # that was assigned was a register or stack variable.
-            import ida_lines
-            hexrays_util.report_info3(
-                "Now tracking %s" %
-                ida_lines.tag_remove(_def.l._print()))
+            hexrays_util.report_info3(f"Now tracking {ida_lines.tag_remove(_def.l._print())}")
 
             # Try to start tracking the other thing...
             ml.clear()
@@ -137,6 +138,7 @@ def find_numeric_def_backwards(blk, op, chain, recursive, allow_multi_succs, blo
 # This function finds a numeric definition by searching in the forward
 # direction.
 def find_forward_numeric_def(blk, mop):
+
     ml = mlist_t()
     if not insert_op(blk, ml, mop):
         return False, None, None
@@ -144,7 +146,7 @@ def find_forward_numeric_def(blk, mop):
     # Find a forward definition
     assign_insn = my_find_def_forwards(blk, ml, None)
     if assign_insn:
-        hexrays_util.report_info3("Forward search found %s" % ida_lines.tag_remove(assign_insn._print()))
+        hexrays_util.report_info3(f"Forward search found {ida_lines.tag_remove(assign_insn._print())}")
 
         # We only want MOV instructions with numeric left-hand sides
         if assign_insn.opcode != m_mov or assign_insn.l.t != mop_n:
@@ -169,7 +171,7 @@ def find_forward_stack_var_def(cluster_head, op_copy, chain):
     if not ok:
         return None
 
-    hexrays_util.report_info3("Forward method found %s!" % ida_lines.tag_remove(num._print()))
+    hexrays_util.report_info3(f"Forward method found {ida_lines.tag_remove(num._print())}!")
 
     # If the found definition was suitable, add the assignment to the chain
     mi = mov_info_t()

@@ -7,17 +7,24 @@ import hexrays_util
 MIN_NUM_COMPARISONS = 2
 
 class jz_info_t:
+    """
+    Helper class, used to determine whether a function is likely obfuscated or not.
+    Also used to collect the number of times a var. was used in a comparison, 
+    and a list of the values it was compared against
+    """
     def __init__(self, op=None, nseen=0):
         self.op = op
         self.nseen = nseen
         self.nums = []
 
-    # This method determines whether a given function is likely obfuscated. It
-    # does this by ensuring that:
-    # 1) Some minimum number of comparisons are made against the "comparison
-    #    variable"
-    # 2) The constant values used in the comparisons are sufficiently entropic.
+  
     def should_blacklist(self):
+        """
+        Determines whether a function is likely obfuscated via
+        a) Minimum number o fcomparisons made against comp. variable
+        b) constant values in comparisons are suff. entropic
+        :return: True if not obfuscated
+        """
 
         # This check is pretty weak. I thought I could set the minimum number to
         # 6, but the pattern deobfuscators might eliminate some of them before
@@ -38,20 +45,14 @@ class jz_info_t:
         # Compute the percentage of 1-bits. Given that these constants seem to be
         # created pseudorandomly, the percentage should be roughly 1/2.
         entropy = 0.0 if num_bits == 0 else num_ones / float(num_bits)
-        hexrays_util.report_info("%d comparisons, %d numbers, %d bits, %d ones, %f entropy" % (
-            self.nseen,
-            len(self.nums),
-            num_bits,
-            num_ones,
-            entropy))
-        return entropy < 0.4 or entropy > 0.6
+        hexrays_util.report_info(f"{self.nseen} comparisons, {len(self.nums)} numbers, {num_bits} bits, {num_ones} ones, {float(entropy)} entropy")
+        return entropy < 0.3 or entropy > 0.6
 
 
-# This class looks for jz/jg comparisons against constant values. For each
-# thing being compared, we use a JZInfo structure to collect the number of
-# times it's been used in a comparison, and a list of the values it was
-# compared against.
 class jz_collector_t(minsn_visitor_t):
+    """
+    Looks for jz, jg comparisons against constant values. Utilised jz_info_t class.
+    """
     def __init__(self):
         minsn_visitor_t.__init__(self)
         self.seen_comparisons = []
@@ -104,17 +105,24 @@ class jz_collector_t(minsn_visitor_t):
 # dispatch variable takes place, and that's mostly why we want it.
 # The information is recorded in the arguments iFirst and iDispatch.
 def get_first_block(mba):
+    """
+    Finds the first block before control flow dispatcher begins.
+    :param mba: mba_t
+    :return: True if found, mblock_t first block, serial first block, dispatcher serial
+    """
 
+    hexrays_util.report_info("Determining first block before cfg disp begins")
     # Initialise first and dispatch to erroneous values
     first, dispatch = -1, -1
     curr = 0
 
     while True:
 
+        hexrays_util.report_info(f"Investigating if dispatcher. Current block = {curr}")
         # If we find a block with more than one successor, we failed.
         mb = mba.get_mblock(curr)
         if mb.nsucc() != 1:
-            hexrays_util.report_error("Block %d had %d (!= 1) successors\n" % (curr, mb.nsucc()))
+            hexrays_util.report_error(f"Block {curr} had {mb.nsucc()} (!= 1) successors\n")
             return False, None, None, None
 
         # Get the successor block
@@ -133,36 +141,6 @@ def get_first_block(mba):
     dispatch = mb.succ(0)
     return True, mb, first, dispatch
 
-    # curr, pred = 0, 0
-    # npred_max = MIN_NUM_COMPARISONS
-    # found = False
-
-    # mb = mba.get_mblock(0)
-    # while mb.nextb:
-    #     if npred_max < mb.npred() and mb.tail and is_mcode_jcond(mb.tail.opcode):
-    #         if mb.tail.r.t != mop_n:
-    #             continue
-    #         if mb.tail.l.t == mop_r or (mb.tail.l.t == mop_d and mb.tail.l.d.opcode == m_and):
-    #             npred_max = mb.npred()
-    #             dispatch = mb.serial
-    #     mb = mb.nextb
-
-    # if dispatch != -1:
-    #     first = mba.get_mblock(dispatch).pred(0)
-    #     mb_first = mba.get_mblock(first)
-    #     if first >= dispatch or not mb_first.tail or is_mcode_jcond(mb_first.tail.opcode):
-    #         min_num = dispatch
-    #         for curr in mba.get_mblock(dispatch).predset:
-    #             mb_curr = mba.get_mblock(curr)
-    #             if curr < min_num and mb_curr.tail and not is_mcode_jcond(mb_curr.tail.opcode):
-    #                 min_num = curr
-    #         first = min_num
-
-    # if first != -1:
-    #     return True, mba.get_mblock(first), first, dispatch
-    # else:
-    #     return False, None, None, None
-
 
 # This class is used to find all variables that have 32-bit numeric values
 # assigned to them in the first block (as well as the values that are
@@ -175,7 +153,6 @@ class block_insn_assign_number_extractor_t(minsn_visitor_t):
     def visit_minsn(self):
         ins = self.curins
 
-        # We're looking for MOV(const.4,x)
         if ins.opcode != m_mov or ins.l.t != mop_n or ins.l.size != 4:
             return 0
 
@@ -215,7 +192,7 @@ class handoff_var_finder_t(minsn_visitor_t):
         # We want copies into our comparison variable
         if ins.opcode not in [m_mov, m_and] or not ins.d.equal_mops(self.comparison_var, EQ_IGNSIZE):
             return 0
-
+        
         # Iterate through the numeric assignments from the first block. These
         # are our candidates.
         for sas in self.num_extractor.seen_assignments:
@@ -245,14 +222,22 @@ class jz_mapper_t(minsn_visitor_t):
         minsn_visitor_t.__init__(self)
         self.cfi = cfi
         self.assign_var = assign_var
+        self.debug = True
 
     def visit_minsn(self):
         ins = self.curins
         mba = self.mba
         blk = self.blk
+        is_jnz = False
 
         # We're looking for jz instructions that compare a number ...
-        if ins.opcode != m_jz or ins.r.t != mop_n:
+        # if its a jnz and the last instruction of the block, the dest_no will be next block in the list
+        if ins.opcode != m_jz:
+            if blk.tail != ins and ins.opcode != m_jnz:
+                return 0
+            is_jnz = True
+        
+        if ins.r.t != mop_n:
             return 0
 
         # ... against our comparison variable ...
@@ -269,7 +254,13 @@ class jz_mapper_t(minsn_visitor_t):
 
         # Record the information in two maps
         key_val = ins.r.nnn.value
-        block_no = ins.d.b
+        
+        # told you above, if flag set, the next block is the destination
+        if is_jnz:
+            block_no = blk.nextb.serial
+        else:
+            block_no = ins.d.b
+        self.cfi.report_info(f"Mapping found, key_val = {hex(key_val)} -> block = {block_no}")
         self.cfi.key_to_block[key_val] = block_no
         self.cfi.block_to_key[block_no] = key_val
         return 0
@@ -354,6 +345,9 @@ def compute_dominators(mba):
 class cf_flatten_info_t:
     def __init__(self, plugin):
         self.plugin = plugin
+        self.maturity = None
+        self.mb_first = None
+        self.detected_dispatchers = []
         self.clear()
 
     def report_info(self, msg):
@@ -380,65 +374,108 @@ class cf_flatten_info_t:
         self.op_and_imm = 0
         self.key_to_block = {}
         self.block_to_key = {}
+    
+    def clear_mmat_calls(self):
+        self.op_assigned = None
+        self.op_compared = None
+        self.op_sub_compared = None
+        self.which_func = ida_idaapi.BADADDR
+        self.dom_info = None
+        self.dominated_clusters = None
+        self.tracking_first_blocks = False
+        self.op_and_assign = False
+        self.op_and_imm = 0
+        self.key_to_block = {}
+        self.block_to_key = {}
 
     # Convenience function to look up a block number by its key. This way, we can
     # write the iterator-end check once, so clients don't have to do it.
     def find_block_by_key(self, key):
         return self.key_to_block.get(key, -1)
 
+    def detect_additional_dispatchers(self, blk):
+        """
+        Detect additional dispatchers.
+        """
+        mba = blk.mba
+        hexrays_util.report_info(f"Detecting additional dispatchers ..")
+        block = mba.get_mblock(0)
+        i = 0
+        while block.nextb != None:
+            block = mba.get_mblock(i)
+            if block.npred() >= 3 and block.get_reginsn_qty() >= 1 and i not in self.detected_dispatchers:
+                hexrays_util.report_info(f"Block serial = {block.serial} with greater equal 3 predecessors found, verifying whether potential dispatcher ..")
+                self.detected_dispatchers.append(i)
+            i += 1
+
+
     # This function computes all of the preliminary information needed for
     # unflattening.
     def get_assigned_and_comparison_variables(self, blk):
-        mba = blk.mba
 
-        # Erase any existing information in this structure.
+        mba = blk.mba
         self.clear()
         ea = mba.entry_ea
 
         # Ensure that this function hasn't been blacklisted (e.g. because entropy
         # calculation indicates that it isn't obfuscated).
         if ea in self.plugin.black_list:
+            hexrays_util.report_error(f"[+] Function Ea = {hex(ea)} blacklisted!")
             return False
-
+        
         # There's also a separate whitelist for functions that were previously
         # seen to be obfuscated.
         was_white_listed = ea in self.plugin.white_list
 
+
+        hexrays_util.report_info(f"Running jz_collector")
         # Look for the variable that was used in the largest number of jz/jg
         # comparisons against a constant. This is our "comparison" variable.
         jzc = jz_collector_t()
         mba.for_all_topinsns(jzc)
         if jzc.n_max_jz < 0:
+            hexrays_util.report_info(f"No comparisons seen for function Ea = {hex(ea)}, adding function to blacklist")
             # If there were no comparisons and we haven't seen this function
             # before, blacklist it.
             if not was_white_listed:
                 self.plugin.black_list.append(ea)
             return False
+        
+        hexrays_util.report_info(f"Max comparisons seen = {jzc.n_max_jz}")
 
         # Otherwise, we were able to find jz comparison information. Use that to
         # determine if the constants look entropic enough. If not, blacklist this
         # function. If so, whitelist it.
         if not was_white_listed:
+            # this kicks out cfgNetwork handling .. lowering entropy..
             if jzc.seen_comparisons[jzc.n_max_jz].should_blacklist():
+                hexrays_util.report_info(f"Classified function as not obfuscated")
                 self.plugin.black_list.append(ea)
                 return False
             self.plugin.white_list.append(ea)
 
         op_max = jzc.seen_comparisons[jzc.n_max_jz].op
-        self.report_info("%s: Comparison variable = %s" % (
-            hexrays_util.mba_maturity_t_to_string(mba.maturity),
-            get_mreg_name(op_max.r, op_max.size)))
 
+
+        hexrays_util.report_info(f"Comparison variable = {op_max.dstr()}")
         # op_max is our "comparison" variable used in the control flow switch.
         if op_max.size < 4:
-            self.report_error("Comparison variable %s is too narrow\n", op_max.dstr())
+            self.report_error(f"Comparison variable {op_max.dstr()} is too narrow\n")
             return False
 
+        ok = False
         # Find the "first" block in the function, the one immediately before the
         # control flow switch.
-        ok, first, self.first, self.dispatch = get_first_block(mba)
+        ok, self.mb_first, self.first, self.dispatch = get_first_block(mba)
+        first = self.mb_first
+        self.detected_dispatchers.append(self.dispatch)
+        self.detect_additional_dispatchers(blk)
+
         if not ok:
+            hexrays_util.report_error(f"Failed determining the first block")
             return False
+        
+        hexrays_util.report_info(f"Determined dispatcher block = {self.dispatch}, first_block = {first.serial}")
 
         # Get all variables assigned to numbers in the first block. If we find the
         # comparison variable in there, then the assignment and comparison
@@ -472,6 +509,7 @@ class cf_flatten_info_t:
 
             # There should have only been one of them; is that true?
             if len(hvf.seen_copies) != 1:
+                hexrays_util.report_error(f"Multiple copies found by handoff finder! Number of copies = {hvf.seen_copies}")
                 return False
 
             # If only one variable (X) assigned a number in the first block was
@@ -505,8 +543,7 @@ class cf_flatten_info_t:
 
         # Compute the dominator information for this function and stash it
         self.dom_info = compute_dominators(mba)
-        for idx, di in enumerate(self.dom_info):
-            self.report_debug("m_DomInfo[%d]: %s" % (idx, di.dstr()))
+
 
         # Compute some more information from the dominators. Basically, once the
         # control flow dispatch switch has transferred control to the function's
@@ -516,13 +553,25 @@ class cf_flatten_info_t:
         # i.e., the one targeted by a jump out of the control flow dispatch
         # switch.
 
+        # to explain this process in my own words:
+        # After the control flow switch block, we enter a control flow block
+        # This control flow block can have multiple basic blocks that run after
+        # the control flow block (f.e. if else branches etc.)
+        # For these non control flow blocks, we collect information, so the first control flow block
+        # before them
+
+        # This is done by generating a new bitset again
+
         # Allocate an array mapping each basic block to the block that dominates
         # it and was targeted by the control flow switch.
         dominated_clusters = [-1] * mba.qty
 
         # For each block/key pair (the targets of the control flow switch)
         for i, _ in sorted(self.block_to_key.items()):
-            self.report_debug("bk.first=%d" % (i,))
+
+            # weird case where we have an out of bounds here
+            if i > len(self.dom_info):
+                continue
             bitset = self.dom_info[i]
 
             # For each block dominated by this control flow switch target, mark
@@ -533,7 +582,8 @@ class cf_flatten_info_t:
 
         # Save that information off.
         self.dominated_clusters = dominated_clusters
-        self.report_debug("m_DominatedClusters: %s" % ", ".join(map(str, self.dominated_clusters)))
+        self.report_info(f"m_DominatedClusters: {', '.join(map(str, self.dominated_clusters))}")
 
+ 
         # Ready to go!
         return True

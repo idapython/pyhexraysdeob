@@ -66,6 +66,7 @@ def remove_single_gotos(mba):
         if not m2 or m2.opcode != m_goto or m2.l.t != mop_b:
             continue
 
+        print(f"[+] Single goto found for block num = {b.serial}")
         # If it was a goto, record the destination block number
         forwarder_info[i] = m2.l.b
 
@@ -119,6 +120,7 @@ def remove_single_gotos(mba):
             # indicate that we should replace. Keep looping, though, to find
             # the ultimate destination.
             should_replace = True
+            print("[+] Replacing single goto target")
 
             # Now check: did the single-goto block also target a single-goto
             # block?
@@ -235,7 +237,7 @@ class deferred_graph_modifier_t:
 
 
     # Apply the planned changes to the graph
-    def apply(self, mba):
+    def apply(self, mba, cfi=None):
 
         # Iterate through the edges slated for removal or addition
         for e in self.edges:
@@ -247,9 +249,14 @@ class deferred_graph_modifier_t:
             mb_dst2 = mba.get_mblock(e.dst2)
             mb_src.succset.push_back(mb_dst2.serial)
             mb_dst2.predset.push_back(mb_src.serial)
-            hexrays_util.report_info("Replaced edge (%d->%d) by (%d->%d)\n" % (
-                e.src, e.dst1, e.src, e.dst2))
-
+            if cfi == None:
+                hexrays_util.report_info("Replaced edge (%d->%d) by (%d->%d)\n" % (
+                    e.src, e.dst1, e.src, e.dst2))
+            else:
+                if e.src in cfi.block_to_key.keys():
+                    hexrays_util.report_info(f"Replaced edge ({e.src}->{e.dst1}) by ({e.src}->{e.dst2}) BlockKey = {hex(cfi.block_to_key[e.src])}")
+                else:
+                    hexrays_util.report_info(f"Replaced edge ({e.src}->{e.dst1}) by ({e.src}->{e.dst2}) BlockKey = {cfi.block_to_key}")
         return len(self.edges)
 
 
