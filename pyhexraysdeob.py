@@ -17,6 +17,7 @@ class pyhexraysdeob_t(ida_idaapi.plugin_t):
         self.white_list = []
         self.wanted_name = "Emotet unflattener"
         self.activated = False
+        self.SAFE_MODE = True
         self.flags = 0
         self.RUN_MLTPL_DISPATCHERS = True
 
@@ -35,11 +36,6 @@ class pyhexraysdeob_t(ida_idaapi.plugin_t):
             print("pyhexraysdeob: no decompiler, skipping")
             return ida_idaapi.PLUGIN_SKIP
         print(f"Hex-rays version {ida_hexrays.get_hexrays_version()} has been detected, {self.wanted_name} ready to use")
-
-        # really needed ?
-        # modules_path = os.path.join(my_dirname, "pyhexraysdeob_modules")
-        # if not modules_path in sys.path:
-        #    sys.path.append(modules_path)
 
         return ida_idaapi.PLUGIN_OK
 

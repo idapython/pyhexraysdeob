@@ -51,6 +51,22 @@ Based on Rolf Rolles' code, the plugin tries to determine whether a function is 
 X.enforce_unflatten(0x1001ec5a)
 ```
 
+### Safe Mode
+
+In the current version, we experienced crashes when trying to unflatten multiple functions without turning the tool off. Thus, we have added a safe mode. Safe mode is enabled by default and deactivates the plugin each time the unflattening algorithm runs on a function. Safe mode can be disabled as follows:
+
+```python
+X.SAFE_MODE = False
+```
+
+If safe mode is enabled, the tool can be reactivated like this:
+
+```python
+X.run(0)
+```
+
+We recommend you to keep safe mode enabled.
+
 ## Limitations & Known Issues
 
 The purpose of this tool is to share our experience and results of attacking Emotet's Control Flow Flattening. In the current state, this solution is not able to deobfuscate all functions completely. Among the outstanding issues:
@@ -59,9 +75,11 @@ The purpose of this tool is to share our experience and results of attacking Emo
 * Conditional states are not handled by this tool.
 * In some cases, we optimize away the `break` statement in a while loop. We are working on this issue. However, bear in mind that this issue exists when analysing an unflattened function 
 * During development and evaluation, we experienced crashes. Thus, we recommend saving often and keeping a separate copy of the IDB file. When working with the tool, we usually keep two windows open. One solely to use with the tool, and one without unflattening activated. As explained above, another way to stabilize the tool is to turn if only on if you are looking at a particular function you want to unflatten.
-* Our research and this tool is based on a previous version of Emotet than the one that is currently propagated by the threat actors (date: 2022-05-04). Thus, if you plan to run the tool on the newest version, the tool will not give you the results as described in the blog article. Below is a list of emotet hashes we have tested the tool on:
+* Our research and this tool is based on a previous version of Emotet than the one that is currently propagated by the threat actors (date: 2022-05-04). Thus, if you plan to run the tool on the newest version, the tool will not give you the results as described in the blog article. Below is a list of unpacked emotet samples we have tested the tool on:
 
 ```
-
+1bbce395c839c737fdc983534b963a1521ab9693a5b585f15b8a4950adea5973 
+926a4edd517e39c492b50ccb0a8e2b23b865599645e4b50638ef9cf117769e1c
 ```
 
+Overall, we believe that this deobfuscator generates expected results as explained in the blog article for the majority of Emotet samples seen up until approx. 2022-04-20. Emotet samples seen later than 2022-04-20 are different in terms of obfuscation, so this tool will fail.

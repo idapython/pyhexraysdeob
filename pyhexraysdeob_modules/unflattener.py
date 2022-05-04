@@ -353,6 +353,9 @@ class cf_unflattener_t(optblock_t):
         :return: number of changes applied
         """
 
+        if self.plugin.activated == False:
+            return 0
+
         mba = blk.mba
 
         # if added to white list, we continue
@@ -574,6 +577,10 @@ class cf_unflattener_t(optblock_t):
         if changed:
             self.report_success(blk, changed)
             mba.verify(True)
+        
+        # if safe mode, deactivate the plugin after usage to prevent the annoying crashes
+        if self.plugin.SAFE_MODE:
+            self.plugin.activated = False
 
         return changed
     
